@@ -177,6 +177,54 @@ def login(user: UserLogin):
         cursor.close()
         connection.close()
 
+@app.post("/start_metadata/{user_id}")
+def start_metadata_generation(user_id: int, background_tasks: BackgroundTasks):
+    print("\n=== INICIANDO GENERACIÓN DE METADATA ===")
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        cursor.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Usuario no encontrado")
+        
+        # Iniciar el generador de metadata en segundo plano
+        background_tasks.add_task(generate_metadata, user_id)
+        return {"message": f"Generación de metadata iniciada para usuario {user_id}"}
+    
+    finally:
+        cursor.close()
+        connection.close()
+
+@app.get("/metadata/{user_id}")
+def get_metadata(user_id: int):
+    print("\n=== PETICIÓN METADATA RECIBIDA ===")
+    connection = get_db_connection()
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        query = """
+        SELECT * FROM metadata 
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        LIMIT 100
+        """
+        cursor.execute(query, (user_id,))
+        results = cursor.fetchall()
+        
+        return {
+            "message": f"Metadata para usuario {user_id}",
+            "count": len(results),
+            "data": results
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    finally:
+        cursor.close()
+        connection.close()
+
 @app.post("/register")
 def register(user: UserRegister):
     print("\n=== PETICIÓN REGISTRO RECIBIDA ===")
